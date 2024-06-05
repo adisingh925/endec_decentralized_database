@@ -6,6 +6,7 @@ contract EndecUtils{
     struct Response{
         RESPONSE_CODES responseCode;
         string responseMsg;
+        string[] requestedData;
     }
 
     error userDoesNotExists(Response response);
@@ -28,13 +29,35 @@ contract EndecUtils{
         DOCUMENT_SUCCESSFULLY_CREATED,
         INVALID_DOCUMENT_ID,
         DATABASE_ALREADY_EXISTS,
-        DOCUMENT_ALREADY_EXISTS
+        DOCUMENT_ALREADY_EXISTS,
+        COLLECTION_NAMES_SUCCESSFULLY_FETCHED,
+        COLLECTION_ALREADY_EXISTS,
+        DATABASES_SUCCESSFULLY_FETCHED,
+        COLLECTION_NOT_EXISTS,
+        DOCUMENT_NOT_EXISTS,
+        DOCUMENTS_SUCCESSFULLY_FETCHED,
+        CHECKS_PASSED,
+        DATA_SUCCESSFULLY_ADDED,  //18
+        KEY_PAIR_COUNT_SUCCESSFULLY_FETCHED,
+        DATA_SUCCESSFULLY_FETCHED,
+        KEY_NOT_EXISTS,
+        DATA_SUCCESSFULLY_UPDATED,
+        DATA_SUCCESSFULLY_DELETED
     }
 
     function createResponse(RESPONSE_CODES responseCode, string memory responseMsg) pure public returns(Response memory){
         return Response({
             responseCode: responseCode,
-            responseMsg: responseMsg
+            responseMsg: responseMsg,
+            requestedData: new string[](0)
+        });
+    }
+
+    function createResponse(RESPONSE_CODES responseCode, string memory responseMsg, string[] memory requestedData) pure public returns(Response memory){
+        return Response({
+            responseCode: responseCode,
+            responseMsg: responseMsg,
+            requestedData: requestedData
         });
     }
 
