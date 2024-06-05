@@ -109,12 +109,6 @@ contract EndecDatabase is EndecUtils{
         // Get the database detail index
         uint256 databaseDetailIndex = getDatabaseDetailIndex(databaseId);
 
-        // If the database detail index is invalid, return an empty array
-        if (databaseDetailIndex == MAX_UINT256) {
-            emit ContractEvent(createResponse(RESPONSE_CODES.DATABASE_NOT_EXISTS, "Database does not exist!"));
-            return;
-        }
-
         // Get the list of collection contract addresses for the database
         uint256[] memory collectionDetailIndexForDatabaseId = databaseDetailsIndexToCollectionDetailsIndexMapping[databaseDetailIndex];
         uint256 length = collectionDetailIndexForDatabaseId.length;
@@ -306,7 +300,7 @@ contract EndecDatabase is EndecUtils{
         }
 
         Data[] memory dataList = documentDetailIndexToDataMapping[documentDetailIndex];
-        string[] memory requestedData = new string[](dataList.length * 2);
+        string[] memory requestedData = new string[](2);
 
         for (uint256 i = 0; i < dataList.length; i++) {
             if (keccak256(bytes(dataList[i].key)) == keccak256(bytes(key))) {
@@ -318,6 +312,28 @@ contract EndecDatabase is EndecUtils{
         }
         
         emit ContractEvent(createResponse(RESPONSE_CODES.KEY_NOT_EXISTS, "Key Does Not Exist!"));
+        return;
+    }
+
+    function getAllKeyValuesForDocument(string memory documentId, string memory collectionId, string memory databaseId) public {
+        (Response memory response, , , uint256 documentDetailIndex) = handleChecks(databaseId, collectionId, documentId);
+
+        if(response.responseCode != RESPONSE_CODES.CHECKS_PASSED){
+            emit ContractEvent(response);
+            return;
+        }
+
+        Data[] memory dataList = documentDetailIndexToDataMapping[documentDetailIndex];
+        string[] memory requestedData = new string[](dataList.length * 2);
+
+        uint256 index = 0;
+        for (uint256 i = 0; i < dataList.length; i++) {
+            requestedData[index] = dataList[i].key;
+            requestedData[index + 1] = dataList[i].value;
+            index += 2;
+        }
+
+        emit ContractEvent(createResponse(RESPONSE_CODES.DATA_SUCCESSFULLY_FETCHED, "Data Successfully Fetched!", requestedData));
         return;
     }
 
