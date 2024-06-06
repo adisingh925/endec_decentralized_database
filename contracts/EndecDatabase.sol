@@ -31,26 +31,20 @@ contract EndecDatabase is EndecUtils{
       * Create a new database
      */
     function createDatabase(string memory databaseId) public returns(Response memory){
-        Response memory response;
-
-        if(!checkDatabaseId(databaseId)){
+        (Response memory response, , , ) = handleChecks(databaseId, "", "");
+        if(response.responseCode == RESPONSE_CODES.DATABASE_NOT_EXISTS){
+            databaseDetails.push(databaseId);
+            addressToDatabaseDetailsIndexMapping[msg.sender].push(databaseDetails.length - 1);
+            response = createResponse(RESPONSE_CODES.DATABASE_SUCCESSFULLY_CREATED, "Database Successfully Created!");
+            emit ContractEvent(response);
+            return response;
+        }else if(response.responseCode == RESPONSE_CODES.INVALID_COLLECTION_ID){
+            emit ContractEvent(createResponse(RESPONSE_CODES.DATABASE_ALREADY_EXISTS, "Database Already Exists!"));
+            return response;
+        }else{
             emit ContractEvent(response);
             return response;
         }
-
-        uint256 databaseDetailIndex = getDatabaseDetailIndex(databaseId);
-
-        if(databaseDetailIndex != MAX_UINT256){
-            response = createResponse(RESPONSE_CODES.DATABASE_ALREADY_EXISTS, "Database Already Exists!");
-            emit ContractEvent(response);
-            return response;
-        }
-
-        databaseDetails.push(databaseId);
-        addressToDatabaseDetailsIndexMapping[msg.sender].push(databaseDetails.length - 1);
-        response = createResponse(RESPONSE_CODES.DATABASE_SUCCESSFULLY_CREATED, "Database Successfully Created!");
-        emit ContractEvent(response);
-        return response;
     }
 
     function getMyDatabases() public returns (Response memory) {
@@ -67,36 +61,21 @@ contract EndecDatabase is EndecUtils{
         return response;
     }
 
-    function createCollection(string memory collectionId, string memory databaseId) public {        
-        if(!checkDatabaseId(databaseId)){
-            emit ContractEvent(createResponse(RESPONSE_CODES.INVALID_DATABASE_ID, "Invalid Database Id!"));
-            return;
-        }
+    function createCollection(string memory collectionId, string memory databaseId) public {      
+        (Response memory response, uint256 databaseDetailIndex, ,) = handleChecks(databaseId, collectionId, "");
 
-        if(!checkCollectionId(collectionId)){
-            emit ContractEvent(createResponse(RESPONSE_CODES.INVALID_COLLECTION_ID, "Invalid Collection Id!"));
+        if(response.responseCode == RESPONSE_CODES.COLLECTION_NOT_EXISTS){
+            collectionDetails.push(collectionId);
+            databaseDetailsIndexToCollectionDetailsIndexMapping[databaseDetailIndex].push(collectionDetails.length - 1);
+            emit ContractEvent(createResponse(RESPONSE_CODES.COLLECTION_SUCCESSFULLY_CREATED, "Collection Successfully Created!"));
             return;
-        }
-
-        uint256 databaseDetailIndex = getDatabaseDetailIndex(databaseId);
-    
-        // If the database name does not exist, return an error
-        if (databaseDetailIndex == MAX_UINT256) {
-            emit ContractEvent(createResponse(RESPONSE_CODES.DATABASE_NOT_EXISTS, "Database does not exist!"));
-            return;
-        }
-
-        // If the collection already exists, return an error
-        if(isCollectionExists(collectionId, databaseDetailIndex) != MAX_UINT256){
+        }else if(response.responseCode == RESPONSE_CODES.INVALID_DOCUMENT_ID){
             emit ContractEvent(createResponse(RESPONSE_CODES.COLLECTION_ALREADY_EXISTS, "Collection Already Exists!"));
             return;
+        }else{
+            emit ContractEvent(response);
+            return;
         }
-
-        collectionDetails.push(collectionId);
-        databaseDetailsIndexToCollectionDetailsIndexMapping[databaseDetailIndex].push(collectionDetails.length - 1);
-
-        emit ContractEvent(createResponse(RESPONSE_CODES.COLLECTION_SUCCESSFULLY_CREATED, "Collection Successfully Created!"));
-        return;
     }
 
     function getCollectionNamesForDatabase(string memory databaseId) public {
@@ -123,48 +102,20 @@ contract EndecDatabase is EndecUtils{
 
 
     function createDocument(string memory documentId, string memory collectionId, string memory databaseId) public {        
-        if(!checkCollectionId(collectionId)){
-            emit ContractEvent(createResponse(RESPONSE_CODES.INVALID_COLLECTION_ID, "Invalid Collection Id!"));
+        (Response memory response, ,uint256 collectionDetailIndex,) = handleChecks(databaseId, collectionId, documentId);
+
+        if(response.responseCode == RESPONSE_CODES.DOCUMENT_NOT_EXISTS){
+            documentDetails.push(documentId);
+            collectionDetailIndexToDocumentDetailsIndexMapping[collectionDetailIndex].push(documentDetails.length - 1);
+            emit ContractEvent(createResponse(RESPONSE_CODES.DOCUMENT_SUCCESSFULLY_CREATED, "Document Successfully Created!"));
             return;
-        }
-
-        if(!checkDatabaseId(databaseId)){
-            emit ContractEvent(createResponse(RESPONSE_CODES.INVALID_DATABASE_ID, "Invalid Database Id!"));
-            return;
-        }
-
-        if(!checkDocumentId(documentId)){
-            emit ContractEvent(createResponse(RESPONSE_CODES.INVALID_DOCUMENT_ID, "Invalid Document Id!"));
-            return;
-        }
-    
-        uint256 databaseDetailIndex = getDatabaseDetailIndex(databaseId);
-    
-        // If the database name does not exist, return an error
-        if (databaseDetailIndex == MAX_UINT256) {
-            emit ContractEvent(createResponse(RESPONSE_CODES.DATABASE_NOT_EXISTS, "Database does not exist!"));
-            return;
-        }
-
-        uint256 collectionDetailIndex = isCollectionExists(collectionId, databaseDetailIndex);
-
-        if(collectionDetailIndex == MAX_UINT256){
-            emit ContractEvent(createResponse(RESPONSE_CODES.INVALID_COLLECTION_ID, "Collection Does Not Exist!"));
-            return;
-        }
-
-        uint256 documentDetailIndex = isDocumentExists(collectionDetailIndex, documentId);
-
-        if(documentDetailIndex != MAX_UINT256){
+        }else if(response.responseCode == RESPONSE_CODES.CHECKS_PASSED){
             emit ContractEvent(createResponse(RESPONSE_CODES.DOCUMENT_ALREADY_EXISTS, "Document Already Exists!"));
             return;
+        }else{
+            emit ContractEvent(response);
+            return;
         }
-
-        documentDetails.push(documentId);
-        collectionDetailIndexToDocumentDetailsIndexMapping[collectionDetailIndex].push(documentDetails.length - 1);
-        
-        emit ContractEvent(createResponse(RESPONSE_CODES.DOCUMENT_SUCCESSFULLY_CREATED, "Document Successfully Created!"));
-        return;
     }
 
     function isCollectionExists(string memory collectionId, uint256 databaseDetailIndex) private view returns(uint256){
@@ -234,45 +185,29 @@ contract EndecDatabase is EndecUtils{
     }
 
     function readDocumentsForCollection(string memory collectionId, string memory databaseId) public {
-        if(!checkCollectionId(collectionId)){
-            emit ContractEvent(createResponse(RESPONSE_CODES.INVALID_COLLECTION_ID, "Invalid Collection Id!"));
+
+        (Response memory response, , uint256 collectionDetailIndex,) = handleChecks(databaseId, collectionId, "");
+
+        if(response.responseCode != RESPONSE_CODES.INVALID_DOCUMENT_ID){
+            uint256[] memory documentDetailIndexForCollectionId = collectionDetailIndexToDocumentDetailsIndexMapping[collectionDetailIndex];
+
+            if(documentDetailIndexForCollectionId.length <= 0){
+                emit ContractEvent(createResponse(RESPONSE_CODES.DOCUMENT_NOT_EXISTS, "Document does not exist!"));
+                return;
+            }
+
+            string[] memory documentList = new string[](documentDetailIndexForCollectionId.length);
+
+            for(uint256 i = 0; i < documentDetailIndexForCollectionId.length; i++){
+                documentList[i] = documentDetails[documentDetailIndexForCollectionId[i]];
+            }
+
+            emit ContractEvent(createResponse(RESPONSE_CODES.DOCUMENTS_SUCCESSFULLY_FETCHED, "Documents Successfully Fetched!", documentList));
+            return;
+        }else{
+            emit ContractEvent(response);
             return;
         }
-
-        if(!checkDatabaseId(databaseId)){
-            emit ContractEvent(createResponse(RESPONSE_CODES.INVALID_DATABASE_ID, "Invalid Database Id!"));
-            return;
-        }
-
-        uint256 databaseDetailIndex = getDatabaseDetailIndex(databaseId);
-
-        if(databaseDetailIndex == MAX_UINT256){
-            emit ContractEvent(createResponse(RESPONSE_CODES.DATABASE_NOT_EXISTS, "Database does not exist!"));
-            return;
-        }
-
-        uint256 collectionDetailIndex = isCollectionExists(collectionId, databaseDetailIndex);
-
-        if(collectionDetailIndex == MAX_UINT256){
-            emit ContractEvent(createResponse(RESPONSE_CODES.COLLECTION_NOT_EXISTS, "Collection does not exist!"));
-            return;
-        }
-
-        uint256[] memory documentDetailIndexForCollectionId = collectionDetailIndexToDocumentDetailsIndexMapping[collectionDetailIndex];
-
-        if(documentDetailIndexForCollectionId.length <= 0){
-            emit ContractEvent(createResponse(RESPONSE_CODES.DOCUMENT_NOT_EXISTS, "Document does not exist!"));
-            return;
-        }
-
-        string[] memory documentList = new string[](documentDetailIndexForCollectionId.length);
-
-        for(uint256 i = 0; i < documentDetailIndexForCollectionId.length; i++){
-            documentList[i] = documentDetails[documentDetailIndexForCollectionId[i]];
-        }
-
-        emit ContractEvent(createResponse(RESPONSE_CODES.DOCUMENTS_SUCCESSFULLY_FETCHED, "Documents Successfully Fetched!", documentList));
-        return;
     }
 
     function addKeyValue(string memory key, string memory value, string memory documentId, string memory collectionId, string memory databaseId) public  {
@@ -372,8 +307,8 @@ contract EndecDatabase is EndecUtils{
         Data[] storage keyValues = documentDetailIndexToDataMapping[documentDetailIndex];
         for (uint256 i = 0; i < keyValues.length; i++) {
             if (keccak256(bytes(keyValues[i].key)) == keccak256(bytes(key))) {
-                keyValues[i] = keyValues[keyValues.length - 1]; // Move the last element to the place of the element to delete
-                keyValues.pop(); // Remove the last element
+                keyValues[i] = keyValues[keyValues.length - 1]; 
+                keyValues.pop(); 
                 emit ContractEvent(createResponse(RESPONSE_CODES.DATA_SUCCESSFULLY_DELETED, "Data Successfully Deleted!"));
                 return;
             }
@@ -390,25 +325,25 @@ contract EndecDatabase is EndecUtils{
         if(!checkDatabaseId(databaseId)){
             return (createResponse(RESPONSE_CODES.INVALID_DATABASE_ID, "Invalid Database Id!"), MAX_UINT256, MAX_UINT256, MAX_UINT256);
         }
-        
-        if(!checkCollectionId(collectionId)){
-            return (createResponse(RESPONSE_CODES.INVALID_COLLECTION_ID, "Invalid Collection Id!"), MAX_UINT256, MAX_UINT256, MAX_UINT256);
-        }
-
-        if(!checkDocumentId(documentId)){
-            return (createResponse(RESPONSE_CODES.INVALID_DOCUMENT_ID, "Invalid Document Id!"), MAX_UINT256, MAX_UINT256, MAX_UINT256);
-        }
 
         databaseDetailIndex = getDatabaseDetailIndex(databaseId);
 
         if(databaseDetailIndex == MAX_UINT256){
             return (createResponse(RESPONSE_CODES.DATABASE_NOT_EXISTS, "Database does not exist!"), MAX_UINT256, MAX_UINT256, MAX_UINT256);
         }
+        
+        if(!checkCollectionId(collectionId)){
+            return (createResponse(RESPONSE_CODES.INVALID_COLLECTION_ID, "Invalid Collection Id!"), MAX_UINT256, MAX_UINT256, MAX_UINT256);
+        }
 
         collectionDetailIndex = isCollectionExists(collectionId, databaseDetailIndex);
 
         if(collectionDetailIndex == MAX_UINT256){
             return (createResponse(RESPONSE_CODES.COLLECTION_NOT_EXISTS, "Collection does not exist!"), databaseDetailIndex, MAX_UINT256, MAX_UINT256);
+        }
+
+        if(!checkDocumentId(documentId)){
+            return (createResponse(RESPONSE_CODES.INVALID_DOCUMENT_ID, "Invalid Document Id!"), MAX_UINT256, MAX_UINT256, MAX_UINT256);
         }
 
         uint256 documentDetailIndex = isDocumentExists(collectionDetailIndex, documentId);
